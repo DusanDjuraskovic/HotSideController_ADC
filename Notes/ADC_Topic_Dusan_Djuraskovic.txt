@@ -1,0 +1,50 @@
+ADC CONVERSION TEST (STM32 Nucleo-C031C6):
+
+3 equal (220 Ohm) resistors were used to create a voltage divider; 
+Channels are connected to alternating voltage indexes, 3 lowest to highest x 2;
+Connected DC supply voltage is 3.3V, which is the reference voltage for the 12-bit ADC (equivalent to 4096-1);
+
+#define numChannels 6 //6 ADC channels for testing purposes
+
+ADC is configured to work with DMA, circular buffer uint16_t adcData[numChannels];
+This is supposed to automatically do ADC conversions in the background, with every conversion replacing 1 element 
+in the existing buffer after the conversion is complete. ADC clock is configured to be the same as SYSCLK (ADC_CLOCK_SYNC_PCLK_DIV1). 
+Sampling time is configured as proposed, to 12.5 ADC cycles (because of the expected series resistance). Therefore, conversion time is expected to be 
+(12.5 + 12.5) / ADC_CLK_FREQ = 0.521 microseconds, per channel. The total conversion time should be 6 * 521 ns = 3.126 microseconds.
+This is not taking into account the DMA transfers. 
+ 
+For benchmarking, TIM16 is used, prescaler is set to 0 (SYSCLK base clock), counts up to 65000 (overkill) and only then it auto resets.
+It is initially started before the 1st (manual) conversion initialization trigger. It stops at the end of the DMA transfer complete 
+callback function and restarts at the end of it. That should take all processes in between into account.
+
+EXPECTED VALUES:
+
+---------------
+
+CH0 --> 1365
+
+CH1 --> 2730
+
+CH2 --> 4095
+
+CH3 --> 1365
+
+CH4 --> 2730
+
+CH5 --> 4095
+
+---------------
+
+RESULTS:
+
+As expected, the conversions are correct (relatively, +- 10%, low voltages and possibly noise, scaling and referencing need to be done) and for the 6 channels, a 
+group conversion (+ DMA transfer from peripheral to memory) takes between 3.625 microseconds on average, if the benchmarking setup is correct.
+The results will be tested with an oscilloscope (as soon as possible), to verify their validity. 
+
+Alternative scenario: If the buffer is configured to be normal (not circular), the configuration for ADC and DMA would need to be invoked each time 
+the conversion is required. It would be repetitive. Racing conditions would not be an issue in this case, but it would take a larger chunk of valuable program time to execute.
+For 1 channel, the test result was around 1.5 microseconds (with 12.5 ADC cycles sampling time). 
+6 channels will be tested in this scenario, but it is expected to take 9 microseconds as opposed to 3.625 (almost 3 times longer).
+The basic ADC class is written, it needs to be modified to accomodate new (conventional) variable names, new variables need to be added as well as the functions for scaling and timing.
+My estimation is that it will all be done by the end of June 2023. 
+

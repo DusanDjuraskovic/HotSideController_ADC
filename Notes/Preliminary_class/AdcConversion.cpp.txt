@@ -1,0 +1,126 @@
+#include "AdcConversion.hpp"
+#include <cstddef>
+#include "stm32c0xx_hal.h"
+
+AdcConversion *theAdcConversion = nullptr;
+
+AdcConversion::AdcConversion()
+{
+    m_u8AdcFlag = 0;
+
+    //m_tmAdcConv.init("AdcConversion");
+}
+
+void AdcConversion::AdcStartDMAConv()
+{
+    //(void)HAL_ADC_Start_DMA(&hadc, (uint32_t*)theAdcConversion->getAdcBuffer(), ADC_BUFFER_SIZE);
+
+    ADC_ChannelConfTypeDef sConfig = {0};
+/* Perform ADC enable and conversion start if no conversion is on going */
+  	 if (LL_ADC_REG_IsConversionOngoing(ADC1) == 0UL)
+  	   {
+  	      /* Process locked */
+  		  __HAL_LOCK(&hadc1);
+
+  	      /* Specific case for first call occurrence of this function (DMA transfer */
+  	      /* not activated and ADC disabled), DMA transfer must be activated        */
+  	      /* with ADC disabled.                                                     */
+  	      if ((ADC1->CFGR1 & ADC_CFGR1_DMAEN) == 0UL)
+  	        {
+  	           if (LL_ADC_IsEnabled(ADC1) != 0UL)
+  	             {
+  	                /* Disable ADC */
+  	                LL_ADC_Disable(ADC1);
+  	              }
+
+  	             /* Enable ADC DMA mode */
+  	             ADC1->CFGR1 |= ADC_CFGR1_DMAEN;
+  	         }
+
+  	      /* Enable the ADC peripheral */
+  	      LL_ADC_Enable(ADC1);
+
+  	      /* Set ADC error code */
+  	      /* Reset all ADC error code fields */
+  	      ADC_CLEAR_ERRORCODE(&hadc1);
+
+	      /* Clear regular group conversion flag and overrun flag */
+  	      /* (To ensure of no unknown state from potential previous ADC           */
+          /* operations)                                                          */
+  	      __HAL_ADC_CLEAR_FLAG(&hadc1, (ADC_FLAG_EOC | ADC_FLAG_EOS | ADC_FLAG_OVR));
+
+  	      /* Process unlocked */
+  	      /* Unlock before starting ADC conversions: in case of potential         */
+  	      /* interruption, to let the process to ADC IRQ Handler.                 */
+  	      __HAL_UNLOCK(&hadc1);
+
+          /* Enable the interrupt in case of data overrun */
+  	      ADC1->IER |= ADC_IT_OVR;
+
+  	      /* DMA Process locked */
+  	      __HAL_LOCK(&hdma_adc1);
+
+  	      /* Disable the DMA peripheral, to configure it */
+  	      DMA1_Channel1->CCR &= ~DMA_CCR_EN;
+
+  	      /* Clear all DMA flags */
+  	      DMA1->IFCR |= (DMA_FLAG_TC1 | DMA_FLAG_HT1 | DMA_FLAG_GI1);
+
+  	      /* Configure DMA Channel data length (for all ADC channels, enter the number of channels) */
+  	      DMA1_Channel1->CNDTR = numChannelsADC;
+
+          /* MEMORY TO PERIPHERAL DMA TRANSFER PARAMETERS */
+
+  	      /* Configure DMA Channel source address (ADC data register) */
+  	      DMA1_Channel1->CPAR = (uint32_t)&hadc1.Instance->DR;
+
+  	      /* Configure DMA Channel destination address (memory buffer, automatically filled element by element) */
+  	      DMA1_Channel1->CMAR = (uint32_t*)theAdcConversion->getAdcBuffer();
+
+  	      /* Enable DMA Circular mode (with this set and EOC for sequence, the conversions continue automatically until explicitly stopped) */
+  	      /* If stopped, the ADC_DMA_Conv_Init function needs to be called again in order to start it again */
+  	      DMA1_Channel1->CCR |= DMA_CCR_CIRC;
+
+  	      /* Disable DMA half-transfer complete callback */
+  	      DMA1_Channel1->CCR &= ~DMA_CCR_HTIE;
+
+  	      /* Enable DMA transfer complete interrupt (occurs after ADC conversion complete and the full data transfer) */
+  	      DMA1_Channel1->CCR |=  DMA_CCR_TCIE;
+
+  	      /* Enable DMA channel 1 (for ADC data peripheral to memory transfer) */
+  	      DMA1_Channel1->CCR |=  DMA_CCR_EN;
+
+  	      /* Unlock the DMA channel for ADC */
+  	      __HAL_UNLOCK(&hdma_adc1);
+
+  	      /* Benchmarking, initialize the timer for the 1st time, start ticking until the callback is reached */
+  	      TIM16->CNT = 0;
+  	      TIM16->CR1 |= TIM_CR1_CEN;
+
+  	      /* Start the initial ADC conversion */
+              startConversion();
+
+        }
+}
+
+void AdcConversion::startConversion()
+{
+     ADC1->CR |= (1<<2);
+}
+
+/* Artificially invoked by DMA transfer complete IRQ handler, for TC flag, because the ADC interrupt is disabled */
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+{
+	/* Benchmarking */
+    /* Stop TIM6 counter */
+	//TIM16->CR1 &= ~TIM_CR1_CEN;
+
+	/* Obtain the elapsed time */
+    //elapsedTime = (float)(TIM16->CNT)/48.0; /* Elapsed time for TIM16 in microseconds */
+
+    /* Benchmarking */
+    /* Start, count until the next group conversion (and DMA transfer) is complete */
+    //TIM16->CNT = 0;
+    //TIM16->CR1 |= TIM_CR1_CEN;
+
+}

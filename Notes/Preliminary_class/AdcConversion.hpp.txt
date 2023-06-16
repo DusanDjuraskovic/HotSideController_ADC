@@ -1,0 +1,43 @@
+//#ifndef ADC_CONVERSION_HPP_
+//#define ADC_CONVERSION_HPP_
+
+/* Basic ADC class for S4F Hotside Controller, STM32 Nucleo-C031C6 */
+
+/* INCLUDES */
+#include <stdint.h>
+
+/* DEFINES */
+#define ADC_BUFFER_SIZE 6U
+#define ADC_CH_0     0U
+#define ADC_CH_1     1U
+#define ADC_CH_2     2U
+#define ADC_CH_3     3U
+#define ADC_CH_4     4U
+#define ADC_CH_5     5U
+#define ADC_CH_6     6U
+
+#define ADC_FLAG_HIGH   1U
+#define ADC_FLAG_LOW    0U
+
+class AdcConversion
+{
+public:
+    AdcConversion();
+    ~AdcConversion() {};
+
+    uint16_t* getAdcBuffer() { return m_au16AdcBuffer; }
+    uint8_t   getFlag() { return m_u8AdcFlag; }
+
+    void setAdcFlag(uint8_t u8Flag) { m_u8AdcFlag = u8Flag; }
+
+    void AdcStartDMAConv();
+
+private:
+    uint8_t  m_u8AdcFlag;
+    uint16_t m_au16AdcBuffer[ADC_BUFFER_SIZE];
+
+};
+
+extern AdcConversion* theAdcConversion;
+
+#endif /* ADC_CONVERSION_HPP_ */
